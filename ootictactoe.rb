@@ -133,7 +133,6 @@ end
 
 class Player
   GRAND_WINNER = 5
-  @@available_markers = ["X", "O"]
 
   attr_accessor :score, :name
 
