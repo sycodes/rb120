@@ -57,6 +57,7 @@ class Board
   end
 
   # rubocop:disable Metrics/AbcSize
+  # rubocop:disable Metrics/MethodLength
   def draw
     puts "     |     |"
     puts "  #{@squares[1]}  |  #{@squares[2]}  |  #{@squares[3]}"
@@ -71,8 +72,9 @@ class Board
     puts "     |     |"
   end
   # rubocop:enable Metrics/AbcSize
+  # rubocop:enable Metrics/MethodLength
 
-  def square_number(player)
+  def square_number(player) # returns integer
     square_number = nil
     WINNING_LINES.each do |line|
       squares = @squares.values_at(*line)
@@ -117,7 +119,7 @@ class Square
   end
 
   def to_s
-    self.marker
+    marker
   end
 
   def unmarked?
@@ -150,19 +152,19 @@ class Human < Player
       puts "What is your name? "
       self.name = gets.chomp.capitalize
       puts ""
-      break if self.name.chars.all? { |char| valid_chars.include?(char) }
+      break if name.chars.all? { |char| valid_chars.include?(char) }
       puts "Sorry, that's not a valid name."
     end
 
     puts "Hello #{name}!"
   end
 
-  def set_marker
+  def assign_marker
     loop do
       puts "Which marker do you want? (X or O): "
       self.marker = gets.chomp.upcase
       puts ""
-      break if ["X", "O"].include?(self.marker)
+      break if ["X", "O"].include?(marker)
       puts "Sorry, that's not a valid choice."
     end
   end
@@ -176,12 +178,8 @@ class Computer < Player
     @name = computer_name
   end
 
-  def set_marker(human)
-    if human.marker == "X"
-      self.marker = "O"
-    else
-      self.marker = "X"
-    end
+  def assign_marker(human)
+    self.marker = human.marker == "X" ? "O" : "X"
   end
 end
 
@@ -210,30 +208,31 @@ class TTTGame
     set_names
     loop do
       set_game
-      clear
-      loop do
-        display_board
-        player_move
-        keep_score
-        display_result
-        if best_of_five?
-          clear
-          display_grand_winner
-          break
-        end
-        reset_board
-      end
+      five_games
+      display_grand_winner
       break unless play_again?
       reset_board_and_score
       display_play_again_message
     end
   end
 
+  def five_games
+    loop do
+      display_board
+      player_move
+      keep_score
+      display_result
+      break if best_of_five?
+      reset_board
+    end
+  end
+
   def set_game
-    human.set_marker
-    computer.set_marker(human)
+    human.assign_marker
+    computer.assign_marker(human)
     first_to_move
     press_key_to_start
+    clear
   end
 
   def set_names
@@ -243,6 +242,7 @@ class TTTGame
 
   def first_to_move
     answer = nil
+
     loop do
       puts "Do you want to go first? (y/n): "
       answer = gets.chomp
@@ -251,20 +251,19 @@ class TTTGame
       puts "Sorry, that's not a valid choice."
     end
 
-    if answer == 'y'
-      @@first_player = human.marker
-    else
-      @@first_player = computer.marker
-    end
+    @@first_player = answer == 'y' ? human.marker : computer.marker
 
     @@current_marker = @@first_player
   end
 
   def best_of_five?
-    human.score == Player::GRAND_WINNER || computer.score == Player::GRAND_WINNER
+    five_wins = Player::GRAND_WINNER
+    human.score == five_wins || computer.score == five_wins
   end
 
   def display_grand_winner
+    clear
+
     if human.score == Player::GRAND_WINNER
       puts "#{human.name} is the grand winner!"
     else
@@ -311,38 +310,61 @@ class TTTGame
   end
 
   def display_board
-    puts "#{human.name} is a #{human.marker}. #{computer.name} is a #{computer.marker}."
+    puts "#{human.name} is a #{human.marker}."
+    puts "#{computer.name} is a #{computer.marker}."
     puts ""
     board.draw
     puts ""
   end
 
   def human_moves
-    square = nil
+    square = square_picked
+    board[square] = human.marker
+  end
+
+  def integer?(square)
+    board.unmarked_keys.include?(square.to_i) && square.to_i.to_s == square
+  end
+
+  def square_picked
     loop do
       puts "Choose a square (#{board.joinor(board.unmarked_keys)}): "
       square = gets.chomp
       puts ""
-      if board.unmarked_keys.include?(square.to_i) && square.to_i.to_s == square
+      if integer?(square)
         square = square.to_i
-        break
+        return square
       end
       puts "Sorry, that's not a valid choice."
     end
-
-    board[square] = human.marker
   end
 
   def computer_moves
     if board.winning?(computer)
-      board[board.square_number(computer)] = computer.marker
+      offensive_square
     elsif board.winning?(human)
-      board[board.square_number(human)] = computer.marker
+      defensive_square
     elsif board.square_five?
-      board[5] = computer.marker
+      middle_square
     else
-      board[board.unmarked_keys.sample] = computer.marker
+      random_square
     end
+  end
+
+  def defensive_square
+    board[board.square_number(human)] = computer.marker
+  end
+
+  def offensive_square
+    board[board.square_number(computer)] = computer.marker
+  end
+
+  def random_square
+    board[board.unmarked_keys.sample] = computer.marker
+  end
+
+  def middle_square
+    board[5] = computer.marker
   end
 
   def current_player_moves
@@ -377,13 +399,13 @@ class TTTGame
     end
 
     display_total_score
-    press_key_to_continue
   end
 
   def display_total_score
     puts ""
     puts "You won a total of #{human.score} times."
     puts "Computer won a total of #{computer.score} times."
+    press_key_to_continue
   end
 
   def play_again?
